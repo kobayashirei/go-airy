@@ -23,26 +23,31 @@ func main() {
 	}
 
 	// Initialize logger
-	log := logger.NewLogger(cfg.Log.Level, cfg.Log.Output)
+	if err := logger.Init(&cfg.Log); err != nil {
+		log.Fatal("Failed to initialize logger:", err)
+	}
+	defer logger.Sync()
 
 	// Initialize database
-	db, err := database.NewDatabase(&cfg.Database, log)
-	if err != nil {
+	if err := database.Init(&cfg.Database); err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
+	defer database.Close()
+
+	db := database.GetDB()
 
 	// Initialize Elasticsearch client
-	esClient, err := search.NewClient(cfg, log)
+	esClient, err := search.NewClient(cfg, logger.Logger)
 	if err != nil {
 		log.Fatal("Failed to create Elasticsearch client:", err)
 	}
 
 	// Initialize repositories
-	userRepo := repository.NewUserRepository(db.DB)
-	postRepo := repository.NewPostRepository(db.DB)
-	circleRepo := repository.NewCircleRepository(db.DB)
-	profileRepo := repository.NewUserProfileRepository(db.DB)
-	statsRepo := repository.NewUserStatsRepository(db.DB)
+	userRepo := repository.NewUserRepository(db)
+	postRepo := repository.NewPostRepository(db)
+	circleRepo := repository.NewCircleRepository(db)
+	profileRepo := repository.NewUserProfileRepository(db)
+	statsRepo := repository.NewUserStatsRepository(db)
 
 	// Initialize search service
 	searchService := service.NewSearchService(
@@ -50,7 +55,7 @@ func main() {
 		userRepo,
 		postRepo,
 		circleRepo,
-		log,
+		logger.Logger,
 	)
 
 	// Initialize indices
@@ -62,9 +67,10 @@ func main() {
 
 	// Initialize message queue
 	mqConfig := &mq.Config{
-		URL: cfg.MQ.GetAddr(),
+		URL:    cfg.MQ.GetAddr(),
+		Logger: logger.Logger,
 	}
-	messageQueue, err := mq.NewRabbitMQ(mqConfig, log)
+	messageQueue, err := mq.NewRabbitMQ(mqConfig)
 	if err != nil {
 		log.Fatal("Failed to connect to message queue:", err)
 	}
@@ -77,7 +83,7 @@ func main() {
 		userRepo,
 		profileRepo,
 		statsRepo,
-		log,
+		logger.Logger,
 	)
 
 	// Subscribe to events
@@ -174,38 +180,3 @@ func main() {
 	fmt.Println("\n✓ Search system is running. Press Ctrl+C to exit.")
 	select {}
 }
-
-// Example output:
-//
-// ✓ Search indices initialized
-// ✓ Search consumer subscribed to events
-//
-// --- Searching for posts ---
-// Found 5 posts matching 'golang'
-// 1. Getting Started with Golang (score: 2.45)
-// 2. Advanced Golang Patterns (score: 2.12)
-// 3. Golang vs Python Performance (score: 1.89)
-// 4. Building APIs with Golang (score: 1.67)
-// 5. Golang Concurrency Explained (score: 1.45)
-//
-// --- Searching for posts in circle 1 ---
-// Found 12 posts in circle 1
-// 1. Welcome to the Programming Circle
-// 2. Weekly Challenge: Fibonacci
-// 3. Code Review: REST API Design
-// ...
-//
-// --- Searching for posts with tag 'tutorial' ---
-// Found 8 posts with tag 'tutorial'
-// 1. Complete Docker Tutorial (hotness: 45.67)
-// 2. React Hooks Tutorial (hotness: 38.92)
-// 3. SQL Basics Tutorial (hotness: 32.15)
-// ...
-//
-// --- Searching for users ---
-// Found 3 users matching 'john'
-// 1. john_doe (score: 3.21)
-// 2. johnny_dev (score: 2.87)
-// 3. john_smith (score: 2.45)
-//
-// ✓ Search system is running. Press Ctrl+C to exit.

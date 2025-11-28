@@ -118,6 +118,28 @@ Error logs include:
 - Stack trace
 - Request context
 
+## Documentation / 文档
+
+[中文文档](README_CN.md) | [English Documentation](README.md)
+
+### English
+- [API Documentation](docs/API.md)
+- [Configuration Guide](docs/CONFIGURATION.md)
+- [Database Setup](docs/DATABASE_SETUP.md)
+- [Authentication Implementation](docs/AUTH_IMPLEMENTATION.md)
+- [Async System](docs/ASYNC_SYSTEM.md)
+- [Hotness System](docs/HOTNESS_SYSTEM.md)
+- [Monitoring](docs/MONITORING.md)
+
+### 中文
+- [API 文档](docs/API_CN.md)
+- [配置指南](docs/CONFIGURATION_CN.md)
+- [数据库设置](docs/DATABASE_SETUP_CN.md)
+- [认证实现](docs/AUTH_IMPLEMENTATION_CN.md)
+- [异步系统](docs/ASYNC_SYSTEM_CN.md)
+- [热度系统](docs/HOTNESS_SYSTEM_CN.md)
+- [监控指南](docs/MONITORING_CN.md)
+
 ## License
 
 MIT

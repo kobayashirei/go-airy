@@ -10,6 +10,13 @@ import (
 	"github.com/kobayashirei/airy/internal/repository"
 )
 
+// VotePublisher defines the interface for publishing vote events
+type VotePublisher interface {
+	PublishVoteCreated(ctx context.Context, voteID, userID int64, entityType string, entityID int64, voteType string) error
+	PublishVoteUpdated(ctx context.Context, voteID, userID int64, entityType string, entityID int64, oldVoteType, newVoteType string) error
+	PublishVoteDeleted(ctx context.Context, voteID, userID int64, entityType string, entityID int64, voteType string) error
+}
+
 // VoteService defines the interface for vote business logic
 type VoteService interface {
 	// Vote creates or updates a vote (idempotent operation)
@@ -22,10 +29,10 @@ type VoteService interface {
 
 // voteService implements VoteService interface
 type voteService struct {
-	voteRepo repository.VoteRepository
-	postRepo repository.PostRepository
+	voteRepo    repository.VoteRepository
+	postRepo    repository.PostRepository
 	commentRepo repository.CommentRepository
-	publisher *mq.Publisher
+	publisher   VotePublisher
 }
 
 // NewVoteService creates a new vote service
@@ -33,13 +40,13 @@ func NewVoteService(
 	voteRepo repository.VoteRepository,
 	postRepo repository.PostRepository,
 	commentRepo repository.CommentRepository,
-	publisher *mq.Publisher,
+	publisher VotePublisher,
 ) VoteService {
 	return &voteService{
-		voteRepo: voteRepo,
-		postRepo: postRepo,
+		voteRepo:    voteRepo,
+		postRepo:    postRepo,
 		commentRepo: commentRepo,
-		publisher: publisher,
+		publisher:   publisher,
 	}
 }
 
