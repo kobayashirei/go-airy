@@ -129,6 +129,44 @@ Generate encryption key:
 openssl rand -base64 32
 ```
 
+### CSRF Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CSRF_TOKEN_LENGTH` | `32` | Token length in bytes |
+| `CSRF_TOKEN_EXPIRATION` | `86400` | Token expiration (seconds) |
+| `CSRF_COOKIE_NAME` | `_csrf` | Cookie name |
+| `CSRF_HEADER_NAME` | `X-CSRF-Token` | Header name |
+| `CSRF_FORM_FIELD_NAME` | `_csrf` | Form field name |
+| `CSRF_SECURE` | `false` | Secure cookie flag |
+| `CSRF_SAME_SITE` | `Strict` | SameSite attribute |
+
+### CORS Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:8080` | Allowed origins (comma-separated) |
+| `CORS_ALLOWED_METHODS` | `GET,POST,PUT,DELETE,OPTIONS,PATCH` | Allowed methods |
+| `CORS_ALLOWED_HEADERS` | `Origin,Content-Type,Accept,Authorization,X-CSRF-Token` | Allowed headers |
+| `CORS_EXPOSED_HEADERS` | `Content-Length,Content-Type` | Exposed headers |
+| `CORS_ALLOW_CREDENTIALS` | `true` | Allow credentials |
+| `CORS_MAX_AGE` | `86400` | Preflight cache max age (seconds) |
+
+### Application URLs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_BASE_URL` | `http://localhost:8080` | Application base URL |
+| `FRONTEND_URL` | `http://localhost:3000` | Frontend URL |
+
+### Token Expiration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ACTIVATION_TOKEN_EXPIRATION` | `86400` | Activation token TTL (seconds) |
+| `PASSWORD_RESET_TOKEN_EXPIRATION` | `3600` | Password reset token TTL (seconds) |
+| `VERIFICATION_CODE_EXPIRATION` | `300` | Verification code TTL (seconds) |
+
 ### Email Configuration
 
 | Variable | Default | Description |
@@ -173,6 +211,17 @@ LOG_OUTPUT=file
 TLS_ENABLED=true
 RATE_LIMIT_ENABLED=true
 CACHE_WARMUP_ENABLED=true
+
+# Security settings
+CSRF_SECURE=true
+CSRF_SAME_SITE=Strict
+CORS_ALLOWED_ORIGINS=https://yourdomain.com
+CORS_ALLOW_CREDENTIALS=true
+
+# Application URLs
+APP_BASE_URL=https://api.yourdomain.com
+FRONTEND_URL=https://yourdomain.com
+
 # Use strong secrets!
 JWT_SECRET=<generated-secret>
 ENCRYPTION_KEY=<generated-key>
@@ -229,6 +278,51 @@ volumes:
   es_data:
 ```
 
+## Security Best Practices
+
+### Secrets Management
+
+1. **Never commit secrets to version control**
+   - Use `.env` files locally (add to `.gitignore`)
+   - Use environment variables or secret managers in production
+
+2. **Generate strong secrets**
+   ```bash
+   # JWT Secret (64 hex characters)
+   openssl rand -hex 32
+   
+   # Encryption Key (base64, 32 bytes)
+   openssl rand -base64 32
+   ```
+
+3. **Rotate secrets regularly**
+   - JWT secrets should be rotated periodically
+   - Encryption keys require careful migration when rotated
+
+### Production Checklist
+
+- [ ] `GIN_MODE=release`
+- [ ] `TLS_ENABLED=true` with valid certificates
+- [ ] `JWT_SECRET` is a strong, unique value
+- [ ] `ENCRYPTION_KEY` is set for sensitive data encryption
+- [ ] `CSRF_SECURE=true` (requires HTTPS)
+- [ ] `CORS_ALLOWED_ORIGINS` is restricted to your domains
+- [ ] `RATE_LIMIT_ENABLED=true`
+- [ ] Database credentials are not default values
+- [ ] Redis password is set if exposed
+- [ ] Log level is `info` or higher (not `debug`)
+
+### Environment-Specific Settings
+
+| Setting | Development | Production |
+|---------|-------------|------------|
+| `GIN_MODE` | `debug` | `release` |
+| `LOG_LEVEL` | `debug` | `info` |
+| `TLS_ENABLED` | `false` | `true` |
+| `CSRF_SECURE` | `false` | `true` |
+| `RATE_LIMIT_ENABLED` | `false` | `true` |
+| `CORS_ALLOWED_ORIGINS` | `*` or localhost | Specific domains |
+
 ## Quick Start
 
 1. Copy environment file:
@@ -254,3 +348,101 @@ volumes:
    ```bash
    make run
    ```
+
+## Troubleshooting
+
+### Common Issues
+
+#### JWT Secret Error
+```
+Error: JWT secret must be set and changed from default
+```
+**Solution**: Set a unique `JWT_SECRET` value:
+```bash
+export JWT_SECRET=$(openssl rand -hex 32)
+```
+
+#### Database Connection Failed
+```
+Error: dial tcp: connect: connection refused
+```
+**Solution**: 
+- Verify `DB_HOST` and `DB_PORT` are correct
+- Ensure MySQL/PostgreSQL is running
+- Check firewall rules
+
+#### Redis Connection Failed
+```
+Error: dial tcp: connect: connection refused
+```
+**Solution**:
+- Verify `REDIS_HOST` and `REDIS_PORT` are correct
+- Ensure Redis is running
+- Check `REDIS_PASSWORD` if authentication is enabled
+
+#### TLS Certificate Error
+```
+Error: TLS certificate file is required when TLS is enabled
+```
+**Solution**:
+- Set `TLS_CERT_FILE` and `TLS_KEY_FILE` paths
+- Or disable TLS with `TLS_ENABLED=false` for development
+
+#### CORS Errors
+```
+Access-Control-Allow-Origin header missing
+```
+**Solution**:
+- Add your frontend URL to `CORS_ALLOWED_ORIGINS`
+- Ensure `CORS_ALLOW_CREDENTIALS=true` if using cookies
+
+#### Rate Limiting Issues
+```
+Error: Too many requests
+```
+**Solution**:
+- Increase `RATE_LIMIT_REQUESTS_PER_SECOND` and `RATE_LIMIT_BURST_SIZE`
+- Or disable with `RATE_LIMIT_ENABLED=false` for development
+
+### Debugging Tips
+
+1. **Enable debug logging**:
+   ```bash
+   LOG_LEVEL=debug
+   GIN_MODE=debug
+   ```
+
+2. **Check configuration loading**:
+   The application logs configuration values at startup (sensitive values are masked).
+
+3. **Validate environment file**:
+   ```bash
+   # Check for syntax errors
+   source .env && echo "Environment file is valid"
+   ```
+
+4. **Test database connection**:
+   ```bash
+   mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME -e "SELECT 1"
+   ```
+
+5. **Test Redis connection**:
+   ```bash
+   redis-cli -h $REDIS_HOST -p $REDIS_PORT ping
+   ```
+
+## Configuration Reference
+
+For a complete list of all configuration options with their default values, see the `.env.example` file in the project root.
+
+### Required vs Optional
+
+| Category | Required | Optional |
+|----------|----------|----------|
+| Server | `SERVER_PORT` | `SERVER_HOST`, `GIN_MODE` |
+| Database | `DB_NAME`, `DB_USER` | `DB_PASSWORD`, connection pool settings |
+| JWT | `JWT_SECRET` | `JWT_EXPIRATION` |
+| Redis | - | All (uses defaults) |
+| Elasticsearch | - | All (uses defaults) |
+| Security | - | `ENCRYPTION_KEY`, `BCRYPT_COST` |
+| TLS | `TLS_CERT_FILE`, `TLS_KEY_FILE` (if enabled) | `TLS_ENABLED` |
