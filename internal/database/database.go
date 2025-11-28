@@ -3,15 +3,15 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/kobayashirei/airy/internal/config"
+	appLogger "github.com/kobayashirei/airy/internal/logger"
 	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"github.com/kobayashirei/airy/internal/config"
-	appLogger "github.com/kobayashirei/airy/internal/logger"
 )
 
 // DB is the global database instance
@@ -39,7 +39,18 @@ func Init(cfg *config.DatabaseConfig) error {
 		PrepareStmt:            true,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		// Fallback: retry with TLS skip-verify if TLS might be required
+		if !strings.Contains(dsn, "tls=") && (strings.Contains(err.Error(), "invalid connection") || strings.Contains(err.Error(), "unexpected EOF")) {
+			fallbackDSN := dsn + "&tls=skip-verify"
+			db, err = gorm.Open(mysql.Open(fallbackDSN), &gorm.Config{
+				Logger:                 gormLogger,
+				SkipDefaultTransaction: true,
+				PrepareStmt:            true,
+			})
+		}
+		if err != nil {
+			return fmt.Errorf("failed to connect to database: %w", err)
+		}
 	}
 
 	// Get underlying SQL database

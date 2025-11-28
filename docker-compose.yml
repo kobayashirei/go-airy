@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: airy_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: airyroot
+      MYSQL_DATABASE: airy
+      MYSQL_USER: airy
+      MYSQL_PASSWORD: airy
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./_data/mysql:/var/lib/mysql
+    command: ["--default-authentication-plugin=mysql_native_password", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+
+  redis:
+    image: redis:7
+    container_name: airy_redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "airyredis"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./_data/redis:/data
+
+volumes:
+  mysql_data:
+  redis_data:

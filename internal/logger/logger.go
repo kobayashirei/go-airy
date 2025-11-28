@@ -2,11 +2,11 @@ package logger
 
 import (
 	"os"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"path/filepath"
 
 	"github.com/kobayashirei/airy/internal/config"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -51,25 +51,30 @@ func Init(cfg *config.LogConfig) error {
 
 	// Determine output
 	var core zapcore.Core
-	if cfg.Output == "file" && cfg.FilePath != "" {
-		// Create logs directory if it doesn't exist
-		if err := os.MkdirAll("logs", 0755); err != nil {
+	if (cfg.Output == "file" || cfg.Output == "both") && cfg.FilePath != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.FilePath), 0755); err != nil {
 			return err
 		}
-
 		file, err := os.OpenFile(cfg.FilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
-
-		writer := zapcore.AddSync(file)
-		core = zapcore.NewCore(
+		fileCore := zapcore.NewCore(
 			zapcore.NewJSONEncoder(encoderConfig),
-			writer,
+			zapcore.AddSync(file),
 			level,
 		)
+		if cfg.Output == "both" {
+			consoleCore := zapcore.NewCore(
+				zapcore.NewConsoleEncoder(encoderConfig),
+				zapcore.AddSync(os.Stdout),
+				level,
+			)
+			core = zapcore.NewTee(consoleCore, fileCore)
+		} else {
+			core = fileCore
+		}
 	} else {
-		// Default to stdout with console encoder for better readability
 		core = zapcore.NewCore(
 			zapcore.NewConsoleEncoder(encoderConfig),
 			zapcore.AddSync(os.Stdout),

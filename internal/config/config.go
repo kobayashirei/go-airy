@@ -1,11 +1,11 @@
 package config
 
 import (
-	"fmt"
-	"time"
+    "fmt"
+    "time"
 
-	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
+    "github.com/joho/godotenv"
+    "github.com/spf13/viper"
 )
 
 // Config holds all configuration for the application
@@ -23,6 +23,7 @@ type Config struct {
 	Hotness   HotnessConfig
 	RateLimit RateLimitConfig
 	Security  SecurityConfig
+	Features  FeaturesConfig
 }
 
 // ServerConfig holds server configuration
@@ -45,6 +46,8 @@ type DatabaseConfig struct {
 	MaxIdleConns    int
 	MaxOpenConns    int
 	ConnMaxLifetime time.Duration
+	InitLockFile    string
+	TLSMode         string
 }
 
 // RedisConfig holds Redis configuration
@@ -92,12 +95,12 @@ type CacheConfig struct {
 	DefaultExpiration time.Duration
 	CleanupInterval   time.Duration
 	// Warmup configuration
-	WarmupEnabled       bool
-	WarmupHotPosts      int
-	WarmupHotUsers      int
-	WarmupHotCircles    int
+	WarmupEnabled         bool
+	WarmupHotPosts        int
+	WarmupHotUsers        int
+	WarmupHotCircles      int
 	WarmupRefreshInterval time.Duration
-	WarmupConcurrency   int
+	WarmupConcurrency     int
 }
 
 // FeedConfig holds feed configuration
@@ -126,10 +129,21 @@ type SecurityConfig struct {
 	BcryptCost int
 }
 
+// FeaturesConfig holds feature toggles for local development
+type FeaturesConfig struct {
+    EnableDatabase      bool
+    EnableRedis         bool
+    AutoCreateDB        bool
+    AutoMigrate         bool
+    AllowStartWithoutDB bool
+    UseGormAutoMigrate  bool
+}
+
 // Load loads configuration from environment variables and config files
 func Load() (*Config, error) {
-	// Load .env file if it exists
-	_ = godotenv.Load()
+    // Load .env file if it exists
+    _ = godotenv.Load(".env.local")
+    _ = godotenv.Load()
 
 	// Set up viper
 	viper.AutomaticEnv()
@@ -155,6 +169,8 @@ func Load() (*Config, error) {
 			MaxIdleConns:    viper.GetInt("DB_MAX_IDLE_CONNS"),
 			MaxOpenConns:    viper.GetInt("DB_MAX_OPEN_CONNS"),
 			ConnMaxLifetime: viper.GetDuration("DB_CONN_MAX_LIFETIME") * time.Second,
+			InitLockFile:    viper.GetString("DB_INIT_LOCK_FILE"),
+			TLSMode:         viper.GetString("DB_TLS_MODE"),
 		},
 		Redis: RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
@@ -209,6 +225,14 @@ func Load() (*Config, error) {
 			EncryptionKey: viper.GetString("ENCRYPTION_KEY"),
 			BcryptCost:    viper.GetInt("BCRYPT_COST"),
 		},
+		Features: FeaturesConfig{
+			EnableDatabase:      viper.GetBool("ENABLE_DATABASE"),
+			EnableRedis:         viper.GetBool("ENABLE_REDIS"),
+			AutoCreateDB:        viper.GetBool("ENABLE_DB_AUTO_CREATE"),
+			AutoMigrate:         viper.GetBool("ENABLE_DB_AUTO_MIGRATE"),
+			AllowStartWithoutDB: viper.GetBool("ALLOW_START_WITHOUT_DB"),
+			UseGormAutoMigrate:  viper.GetBool("USE_GORM_AUTOMIGRATE"),
+		},
 	}
 
 	// Validate configuration
@@ -233,6 +257,8 @@ func setDefaults() {
 	viper.SetDefault("DB_MAX_IDLE_CONNS", 10)
 	viper.SetDefault("DB_MAX_OPEN_CONNS", 100)
 	viper.SetDefault("DB_CONN_MAX_LIFETIME", 3600)
+	viper.SetDefault("DB_INIT_LOCK_FILE", "./data/db_init.lock")
+	viper.SetDefault("DB_TLS_MODE", "preferred")
 
 	viper.SetDefault("REDIS_HOST", "localhost")
 	viper.SetDefault("REDIS_PORT", 6379)
@@ -281,6 +307,14 @@ func setDefaults() {
 	// Security defaults
 	viper.SetDefault("ENCRYPTION_KEY", "")
 	viper.SetDefault("BCRYPT_COST", 10)
+
+	// Feature toggles (useful for local development)
+	viper.SetDefault("ENABLE_DATABASE", true)
+	viper.SetDefault("ENABLE_REDIS", true)
+	viper.SetDefault("ENABLE_DB_AUTO_CREATE", true)
+	viper.SetDefault("ENABLE_DB_AUTO_MIGRATE", true)
+	viper.SetDefault("ALLOW_START_WITHOUT_DB", true)
+	viper.SetDefault("USE_GORM_AUTOMIGRATE", true)
 }
 
 // Validate validates the configuration
@@ -293,8 +327,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("JWT secret must be set and changed from default")
 	}
 
-	if c.Database.Name == "" {
-		return fmt.Errorf("database name is required")
+	if c.Features.EnableDatabase {
+		if c.Database.Name == "" {
+			return fmt.Errorf("database name is required")
+		}
 	}
 
 	if c.Pool.Size <= 0 {
@@ -321,8 +357,12 @@ func (c *Config) Validate() error {
 
 // GetDSN returns the database connection string
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		c.User, c.Password, c.Host, c.Port, c.Name)
+	params := "charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=5s&writeTimeout=5s"
+	if c.TLSMode != "" {
+		params = params + "&tls=" + c.TLSMode
+	}
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
+		c.User, c.Password, c.Host, c.Port, c.Name, params)
 }
 
 // GetRedisAddr returns the Redis address

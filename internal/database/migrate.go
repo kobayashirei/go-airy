@@ -7,10 +7,9 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"go.uber.org/zap"
-
 	"github.com/kobayashirei/airy/internal/config"
 	appLogger "github.com/kobayashirei/airy/internal/logger"
+	"go.uber.org/zap"
 )
 
 // RunMigrations runs database migrations
@@ -133,4 +132,40 @@ func MigrationVersion(cfg *config.DatabaseConfig, migrationsPath string) (uint, 
 	}
 
 	return version, dirty, nil
+}
+
+// ForceMigrationVersion forces the migration version and clears dirty state
+func ForceMigrationVersion(cfg *config.DatabaseConfig, migrationsPath string, version uint) error {
+	// Open database connection
+	dsn := cfg.GetDSN()
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	// Create MySQL driver instance
+	driver, err := mysql.WithInstance(db, &mysql.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	// Create migrate instance
+	m, err := migrate.NewWithDatabaseInstance(
+		fmt.Sprintf("file://%s", migrationsPath),
+		"mysql",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+
+	if err := m.Force(int(version)); err != nil {
+		return fmt.Errorf("failed to force migration version: %w", err)
+	}
+
+	appLogger.Info("Forced migration version",
+		zap.Uint("version", version),
+	)
+	return nil
 }
