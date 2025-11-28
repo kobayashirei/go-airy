@@ -12,7 +12,7 @@ import (
 
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
-	userService service.UserService
+    userService service.UserService
 }
 
 // NewAuthHandler creates a new auth handler
@@ -80,6 +80,34 @@ func (h *AuthHandler) Activate(c *gin.Context) {
 	response.Success(c, gin.H{
 		"message": "Account activated successfully",
 	})
+}
+
+// ResendActivation handles resending activation email
+// POST /api/v1/auth/resend-activation
+func (h *AuthHandler) ResendActivation(c *gin.Context) {
+    var req struct{
+        Identifier string `json:"identifier" binding:"required"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        response.BadRequest(c, "Identifier is required", nil)
+        return
+    }
+    if err := h.userService.ResendActivation(c.Request.Context(), req.Identifier); err != nil {
+        switch {
+        case errors.Is(err, service.ErrUserNotFound):
+            response.NotFound(c, "User not found")
+        default:
+            if strings.Contains(err.Error(), "already active") {
+                response.BadRequest(c, "User already active", nil)
+            } else if strings.Contains(err.Error(), "no email") {
+                response.BadRequest(c, "User has no email to send activation", nil)
+            } else {
+                response.InternalError(c, "Failed to resend activation")
+            }
+        }
+        return
+    }
+    response.Success(c, gin.H{"message":"Activation email resent"})
 }
 
 // Login handles user login with password

@@ -16,21 +16,20 @@
 
 ## 激活
 - `POST /activate`
-- 请求体：
-```
-{
-  "email": "user@example.com",
-  "code": "123456"
-}
-```
-- 响应：`SUCCESS`
+- 传参方式（二选一）：
+  - 查询参数：`/activate?token=<激活令牌>`
+  - 请求体：
+    ```
+    { "token": "<激活令牌>" }
+    ```
+- 响应：`SUCCESS`，`{"message":"Account activated successfully"}`
 
 ## 登录（密码）
 - `POST /login`
 - 请求体：
 ```
 {
-  "email": "user@example.com",
+  "identifier": "user@example.com | +86130xxxx | username",
   "password": "******"
 }
 ```
@@ -39,8 +38,9 @@
 {
   "code": "SUCCESS",
   "data": {
-    "access_token": "<jwt>",
-    "expires_in": 86400
+    "token": "<jwt>",
+    "refresh_token": "<jwt_refresh>",
+    "user": { ... }
   }
 }
 ```
@@ -50,16 +50,27 @@
 - 请求体：
 ```
 {
-  "email": "user@example.com",
+  "identifier": "user@example.com | +86130xxxx",
   "code": "123456"
 }
 ```
-- 响应：同上，返回 `access_token`
+- 响应：同上，返回 `token`/`refresh_token` 与 `user`
 
 ## 刷新令牌
 - `POST /refresh`
-- 请求头：`Authorization: Bearer <旧JWT>`
-- 响应：返回新的 `access_token`
+- 请求头或请求体：
+  - `Authorization: Bearer <旧refresh_token>`
+  - 或：`{"refresh_token":"<旧refresh_token>"}`
+- 响应：返回新的 `token`
+
+## 重新发送激活邮件
+- `POST /resend-activation`
+- 请求体：
+```
+{ "identifier": "user@example.com | +86130xxxx | username" }
+```
+- 响应：`SUCCESS`，`{"message":"Activation email resent"}`
+- 说明：用户未激活且已绑定邮箱时生成新的激活令牌并发送邮件；已激活或无邮箱则返回错误
 
 令牌说明：
 - 签名算法：`HS256`

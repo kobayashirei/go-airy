@@ -41,11 +41,12 @@ var phoneRegex = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
 
 // UserService defines the interface for user business logic
 type UserService interface {
-	Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error)
-	Activate(ctx context.Context, token string) error
-	Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
-	LoginWithCode(ctx context.Context, req LoginWithCodeRequest) (*LoginResponse, error)
-	RefreshToken(ctx context.Context, token string) (*RefreshTokenResponse, error)
+    Register(ctx context.Context, req RegisterRequest) (*RegisterResponse, error)
+    Activate(ctx context.Context, token string) error
+    Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
+    LoginWithCode(ctx context.Context, req LoginWithCodeRequest) (*LoginResponse, error)
+    RefreshToken(ctx context.Context, token string) (*RefreshTokenResponse, error)
+    ResendActivation(ctx context.Context, identifier string) error
 }
 
 // RegisterRequest represents a user registration request
@@ -385,6 +386,45 @@ func (s *userService) RefreshToken(ctx context.Context, token string) (*RefreshT
 	return &RefreshTokenResponse{
 		Token: newToken,
 	}, nil
+}
+
+// ResendActivation regenerates and resends activation token to user's email
+func (s *userService) ResendActivation(ctx context.Context, identifier string) error {
+    var user *models.User
+    var err error
+    if emailRegex.MatchString(identifier) {
+        user, err = s.userRepo.FindByEmail(ctx, identifier)
+    } else if phoneRegex.MatchString(identifier) {
+        // If identifier is phone, try phone then fallback by username
+        user, err = s.userRepo.FindByPhone(ctx, identifier)
+    } else {
+        user, err = s.userRepo.FindByUsername(ctx, identifier)
+    }
+    if err != nil {
+        return fmt.Errorf("failed to find user: %w", err)
+    }
+    if user == nil {
+        return ErrUserNotFound
+    }
+    if user.Status == "active" {
+        return errors.New("user already active")
+    }
+    if user.Email == "" {
+        return errors.New("user has no email")
+    }
+
+    token, err := generateToken(32)
+    if err != nil {
+        return fmt.Errorf("failed to generate activation token: %w", err)
+    }
+    tokenKey := cache.ActivationTokenKey(token)
+    if err := s.cacheService.Set(ctx, tokenKey, user.ID, 24*time.Hour); err != nil {
+        return fmt.Errorf("failed to store activation token: %w", err)
+    }
+    if err := s.emailService.SendActivationEmail(ctx, user.Email, token); err != nil {
+        return fmt.Errorf("failed to send activation email: %w", err)
+    }
+    return nil
 }
 
 // generateToken generates a random token

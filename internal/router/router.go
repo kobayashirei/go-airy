@@ -40,6 +40,7 @@ func SetupAuthRoutes(router *gin.RouterGroup, cfg *config.Config) {
 		authGroup.POST("/login", authHandler.Login)
 		authGroup.POST("/login/code", authHandler.LoginWithCode)
 		authGroup.POST("/refresh", authHandler.RefreshToken)
+		authGroup.POST("/resend-activation", authHandler.ResendActivation)
 	}
 }
 
