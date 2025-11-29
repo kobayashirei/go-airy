@@ -11,3 +11,7 @@ This directory contains high-level summaries and architectural overviews of the 
 - [**项目实现汇总 (中文)**](PROJECT_IMPLEMENTATION_SUMMARY_CN.md)
   - 项目架构、目录结构和核心模块的综合指南。
   - 包含基础设施、应用组件和业务逻辑的详细信息。
+
+- [**Handler Feature Summary (Bilingual)**](HANDLER_FEATURE_SUMMARY.md)
+  - A summary of features implemented in the interface handlers.
+  - 接口处理器功能的双语汇总。
